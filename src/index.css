@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-brand-cloud text-brand-navy font-sans antialiased;
+}
+
+h1, h2, h3, h4 {
+  @apply font-display font-semibold tracking-tight text-brand-navy;
+}
+
+:focus-visible {
+  outline: 2px solid #D9500A;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------- Scroll reveal ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .7s cubic-bezier(.4,0,.2,1), transform .7s cubic-bezier(.4,0,.2,1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- Grid / chart texture backgrounds ---------- */
+.chart-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+.chart-grid-light {
+  background-image:
+    linear-gradient(rgba(10,31,51,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10,31,51,.045) 1px, transparent 1px);
+  background-size: 38px 38px;
+}
+
+/* ---------- Hero route line drawing itself in ---------- */
+.route-path-solid {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+}
+
+/* ---------- Motion path for the small ship icon travelling the hero route ---------- */
+.route-mover {
+  offset-path: path('M40,300 C140,120 260,340 400,140 C470,50 520,90 560,60');
+}
+
+/* ---------- Respect reduced motion system-wide ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
