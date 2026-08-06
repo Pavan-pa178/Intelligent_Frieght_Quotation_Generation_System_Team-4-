@@ -114,7 +114,3 @@ See [`docs/API-INTEGRATION.md`](docs/API-INTEGRATION.md) for the exact endpoint 
 - **Frontend Team** — owns everything in this repo: React screens, forms, the quote calculator, the dashboard/portal
 - **Backend Team** — Django REST APIs, MongoDB models (via mongoengine), JWT auth, admin panel (see `docs/API-INTEGRATION.md` for the contract this frontend expects)
 - **ML / Data Team** — the pricing model behind shipment rates; today the frontend uses the placeholder rate table in `src/lib/mockData.js`, meant to be replaced by a real `/api/rates/` endpoint
-
-## License
-
-Provided as-is for a team learning/demo project. Replace this section with your own license before shipping to production.
