@@ -1,112 +1,57 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
 
-from .models import Shipment
-from .serializers import ShipmentEnquirySerializer, ShipmentResponseSerializer
-from . import pricing_service
+from .models import Shipment, ShipmentStep, ContactInfo
 
 
-class EstimateView(APIView):
-    """
-    POST /api/estimate
-    Stateless — does not create a shipment. This is what the Live Estimate
-    panel calls (debounced) to independently verify the client-side number,
-    and what it falls back to if the browser-side calc can't run.
-    """
-
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        serializer = ShipmentEnquirySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        try:
-            estimate = pricing_service.compute_estimate(
-                origin=data["origin"],
-                destination=data["destination"],
-                weight_kg=data["weight_kg"],
-                volume_m3=data["volume_m3"],
-                cargo_type=data["cargo_type"],
-                mode=data["transport_mode"],
-            )
-        except pricing_service.UnresolvedGatewayError as exc:
-            return Response(
-                {"success": False, "error": {"code": "GATEWAY_UNRESOLVED", "message": str(exc)}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response({"success": True, "data": estimate})
+def shipment_to_dict(s):
+    return {
+        "tn": s.tn, "from": s.origin, "to": s.destination, "service": s.service,
+        "status": s.status, "weight": s.weight, "cost": s.cost, "date": s.date,
+        "steps": [{"label": st.label, "loc": st.loc, "ts": st.ts, "done": st.done, "current": st.current} for st in s.steps],
+    }
 
 
 class ShipmentListCreateView(APIView):
-    """
-    GET  /api/shipments  -> list the current user's shipments
-    POST /api/shipments  -> create an enquiry; computes and persists the
-                             estimate at creation time so history is stable
-                             even if rates change later.
-    """
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        shipments = Shipment.objects(user_id=str(request.user.id))
-        serializer = ShipmentResponseSerializer(shipments, many=True)
-        return Response({"success": True, "data": serializer.data})
+        shipments = Shipment.objects(user_id=str(request.user.id)).order_by("-created_at")
+        return Response([shipment_to_dict(s) for s in shipments])
 
     def post(self, request):
-        serializer = ShipmentEnquirySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        data = request.data
+        required = ["tn", "from", "to", "service", "status", "weight", "cost", "date"]
+        missing = [f for f in required if data.get(f) in (None, "")]
+        if missing:
+            return Response({"detail": f"Missing fields: {', '.join(missing)}"}, status=400)
+        if Shipment.objects(tn=data["tn"]).first():
+            return Response({"detail": "A shipment with this tracking number already exists"}, status=400)
 
-        try:
-            estimate = pricing_service.compute_estimate(
-                origin=data["origin"],
-                destination=data["destination"],
-                weight_kg=data["weight_kg"],
-                volume_m3=data["volume_m3"],
-                cargo_type=data["cargo_type"],
-                mode=data["transport_mode"],
-            )
-        except pricing_service.UnresolvedGatewayError as exc:
-            return Response(
-                {"success": False, "error": {"code": "GATEWAY_UNRESOLVED", "message": str(exc)}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        steps = [ShipmentStep(label=st.get("label",""), loc=st.get("loc",""), ts=st.get("ts",""),
+                               done=bool(st.get("done", False)), current=bool(st.get("current", False)))
+                 for st in data.get("steps", [])]
+        contact_data = data.get("contact") or {}
+        contact = ContactInfo(name=contact_data.get("name",""), company=contact_data.get("company",""),
+                               email=contact_data.get("email",""), phone=contact_data.get("phone",""))
 
         shipment = Shipment(
-            user_id=str(request.user.id),
-            origin=data["origin"],
-            destination=data["destination"],
-            ready_date=data["ready_date"],
-            transport_mode=data["transport_mode"],
-            weight_kg=data["weight_kg"],
-            volume_m3=data["volume_m3"],
-            cargo_type=data["cargo_type"],
-            distance_km=estimate["distance_km"],
-            transit_days=estimate["transit_days"],
-            chargeable_kg=estimate["chargeable_kg"],
-            indicative_total=estimate["indicative_total"],
-            status="draft",
+            user_id=str(request.user.id), tn=data["tn"], origin=data["from"], destination=data["to"],
+            service=data["service"], status=data["status"], weight=data.get("weight"), cost=data.get("cost"),
+            date=data.get("date"), steps=steps, contact=contact, decl_value=str(data.get("declValue","")),
+            note=data.get("note",""), fragile=bool(data.get("fragile", False)),
+            hazmat=bool(data.get("hazmat", False)), insurance=bool(data.get("insurance", False)),
         )
         shipment.save()
-
-        response_data = ShipmentResponseSerializer(shipment).data
-        return Response({"success": True, "data": response_data}, status=status.HTTP_201_CREATED)
+        return Response(shipment_to_dict(shipment), status=201)
 
 
-class ShipmentDetailView(APIView):
-    """GET /api/shipments/<id> — a single shipment, scoped to its owner."""
-
+class ShipmentTrackingView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, shipment_id):
-        shipment = Shipment.objects(id=shipment_id, user_id=str(request.user.id)).first()
+    def get(self, request, tracking_number):
+        shipment = Shipment.objects(tn__iexact=tracking_number).first()
         if not shipment:
-            return Response(
-                {"success": False, "error": {"code": "NOT_FOUND", "message": "Shipment not found"}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        return Response({"success": True, "data": ShipmentResponseSerializer(shipment).data})
+            return Response({"detail": "Not found"}, status=404)
+        return Response(shipment_to_dict(shipment))
