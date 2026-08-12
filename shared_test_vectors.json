@@ -1,0 +1,50 @@
+[
+  {
+    "id": "TV-01",
+    "description": "Ocean FCL Mumbai to Dubai 2x40HC",
+    "input": {
+      "origin": "INNSA",
+      "destination": "AEJEA",
+      "mode": "OCEAN",
+      "loadType": "FCL",
+      "cargoItems": [{ "package_type": "CONTAINER", "container_type": "40HC", "container_count": 2, "gross_weight_kg": 18400 }]
+    },
+    "expected": {
+      "chargeBasis": "Per container — FCL",
+      "unitsLabel": "2 × 40HC",
+      "mainDistanceNm": 1205,
+      "transitRange": "6–10 d"
+    }
+  },
+  {
+    "id": "TV-02",
+    "description": "Ocean LCL Mumbai to Rotterdam 4.5 CBM / 2.1 Tonnes",
+    "input": {
+      "origin": "INNSA",
+      "destination": "NLRTM",
+      "mode": "OCEAN",
+      "loadType": "LCL",
+      "cargoItems": [{ "package_type": "PALLET", "quantity": 3, "weight_per_unit_kg": 700, "length_cm": 120, "width_cm": 100, "height_cm": 125 }]
+    },
+    "expected": {
+      "chargeBasis": "Revenue tons — LCL",
+      "unitsLabel": "4.5 R/T",
+      "mainDistanceNm": 6400
+    }
+  },
+  {
+    "id": "TV-03",
+    "description": "Air Freight Mumbai to Dubai 250 kg Actual vs 360 kg Volumetric",
+    "input": {
+      "origin": "BOM",
+      "destination": "DXB",
+      "mode": "AIR",
+      "loadType": "LCL",
+      "cargoItems": [{ "package_type": "CARTON", "quantity": 10, "weight_per_unit_kg": 25, "length_cm": 60, "width_cm": 60, "height_cm": 60 }]
+    },
+    "expected": {
+      "chargeBasis": "Chargeable weight",
+      "unitsLabel": "360 kg ch."
+    }
+  }
+]

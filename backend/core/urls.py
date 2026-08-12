@@ -1,22 +1,19 @@
-"""
-URL configuration for core project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from apps.shipments.views import AgentRunStatusView
+
+from apps.masterdata.views import ContactView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/v1/auth/', include('apps.accounts.urls')),
+    path('api/v1/gateways/', include('apps.masterdata.urls')),
+    path('api/v1/masterdata/', include('apps.masterdata.urls')),
+    path('api/v1/ports/', include('apps.masterdata.urls')),
+    path('api/v1/shipments/', include('apps.shipments.urls')),
+    path('api/v1/runs/<str:run_id>/', AgentRunStatusView.as_view(), name='run_status'),
+    path('api/v1/quotes/', include('apps.quotes.urls')),
+    path('api/v1/estimate/', include('apps.quotes.estimate_urls')),
+    path('api/v1/routes/', include('apps.routing.urls')),
+    path('api/v1/contact/', ContactView.as_view(), name='contact_submit'),
 ]

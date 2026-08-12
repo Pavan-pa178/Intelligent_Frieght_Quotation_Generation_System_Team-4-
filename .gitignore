@@ -1,13 +1,34 @@
-node_modules
-dist
+# Secrets & Environment Files
 .env
 .env.local
-.DS_Store
-*.log
-.vercel
-backend/venv/
-backend/__pycache__/
-backend/*/__pycache__/
+.env.*.local
+*.env
 backend/.env
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+.venv/
+venv/
+env/
+
+# Build Outputs
+dist/
+build/
+frontend/dist/
+
+# Python & Django Cache / Local Database
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
 backend/db.sqlite3
-backend/*.joblib
+.pytest_cache/
+
+# System / OS Files
+.DS_Store
+Thumbs.db
+
+# Documents
+*.pdf
