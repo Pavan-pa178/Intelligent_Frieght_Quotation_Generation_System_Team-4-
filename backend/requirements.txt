@@ -17,4 +17,6 @@ sqlparse==0.5.5
 threadpoolctl==3.6.0
 tzdata==2026.3
 gunicorn>=21.2
-whitenoise>=6.6
+whitenoise>=6.6pytest==9.1.1
+pytest-django==4.14.0
+mongomock==4.3.0
