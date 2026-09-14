@@ -1496,9 +1496,20 @@ export default function QuoteDetail() {
                         >
                           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-line pb-4 mb-4">
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-display text-base font-bold text-brand-navy">{r.carrier}</span>
-                                {r.recommended && (
+                                {r.personaBadge && (
+                                  <span className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-bold border ${
+                                    r.persona === 'BEST_VALUE'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : r.persona === 'FASTEST_TRANSIT'
+                                        ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                        : 'bg-purple-50 text-purple-700 border-purple-200'
+                                  }`}>
+                                    {r.personaBadge}
+                                  </span>
+                                )}
+                                {r.recommended && !r.personaBadge && (
                                   <span className="rounded-full bg-brand-orangePale px-2.5 py-0.5 font-mono text-[10px] font-bold text-brand-orange">
                                     RECOMMENDED
                                   </span>
@@ -1510,6 +1521,13 @@ export default function QuoteDetail() {
                                 )}
                               </div>
                               <div className="text-xs text-brand-slate mt-0.5">{r.serviceName} · {r.sailingFrequency}</div>
+                              {r.selectionReason && (
+                                <div className="text-[11px] font-medium text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                  <span>{r.selectionReason}</span>
+                                  {r.corridorName && <span className="text-slate-400 font-normal">({r.corridorName})</span>}
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-4">
