@@ -122,17 +122,7 @@ class QuoteDetailView(APIView):
 
     def get(self, request, quote_id):
         qid = (quote_id or '').strip().upper()
-        try:
-            col = get_collection('quotes')
-            if col is not None:
-                found_db = col.find_one({'id': {'$regex': f'^{qid}$', '$options': 'i'}}, {'_id': 0})
-                if found_db:
-                    return Response(found_db)
-                return Response({'detail': f'Quotation {quote_id} not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception:
-            pass
-
-        found = next((q for q in (IN_MEMORY_QUOTES + SEED_QUOTES) if q.get('id', '').upper() == qid), None)
+        found = _find_quote_anywhere(qid)
         if found:
             return Response(found)
         return Response({'detail': f'Quotation {quote_id} not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -190,13 +180,25 @@ def _find_quote_anywhere(qid):
 
 
 def _update_quote_anywhere(qid, update_fields):
-    storage.update_quote_fields(qid, update_fields)
+    updated_obj = storage.update_quote_fields(qid, update_fields)
     col = get_collection('quotes')
     if col is not None:
         try:
-            col.update_one({'id': {'$regex': f'^{qid}$', '$options': 'i'}}, {'$set': update_fields}, upsert=True)
+            clean_set = {}
+            top_keys = {k for k in update_fields.keys() if '.' not in k}
+            for k, v in update_fields.items():
+                if '.' in k:
+                    prefix = k.split('.')[0]
+                    if prefix in top_keys:
+                        continue
+                clean_set[k] = v
+            col.update_one({'id': {'$regex': f'^{qid}$', '$options': 'i'}}, {'$set': clean_set}, upsert=True)
         except Exception:
-            pass
+            if updated_obj and isinstance(updated_obj, dict):
+                try:
+                    col.replace_one({'id': {'$regex': f'^{qid}$', '$options': 'i'}}, updated_obj, upsert=True)
+                except Exception:
+                    pass
 
     found_in_mem = False
     for pool in (IN_MEMORY_QUOTES, SEED_QUOTES):
@@ -496,7 +498,6 @@ class QuoteCustomsActionView(APIView):
                 _update_quote_anywhere(qid, {
                     'customs_review': customs_review,
                     'customs_document_request': doc_req_update,
-                    'customs_document_request.status': 'APPROVED',
                     'status': status_label,
                     'pipeline_status': 'CUSTOMS_APPROVED',
                     'm3_customs.compliance_status': 'APPROVED',

@@ -122,7 +122,27 @@ export default function QuoteDetail() {
 
   useEffect(() => {
     fetchQuoteById(id).then((res) => {
-      setQuote(res)
+      if (res) {
+        const effStatus = resolveEffectiveQuoteStatus(res)
+        const isCustomsSignOff = 
+          effStatus === 'Approved by Customs and Awaiting for Customer confirmation' ||
+          effStatus === 'Approved by Customs' ||
+          effStatus === 'Approved'
+        const normalized = {
+          ...res,
+          status: effStatus,
+          pipeline_status: isCustomsSignOff && (!res.pipeline_status || res.pipeline_status === 'DOCS_SUBMITTED')
+            ? 'CUSTOMS_APPROVED'
+            : (res.pipeline_status || effStatus.toUpperCase().replace(/\s+/g, '_')),
+          customs_review: isCustomsSignOff ? (res.customs_review || { status: 'approved' }) : res.customs_review,
+          customs_document_request: isCustomsSignOff && res.customs_document_request
+            ? { ...res.customs_document_request, status: 'APPROVED' }
+            : res.customs_document_request
+        }
+        setQuote(normalized)
+      } else {
+        setQuote(null)
+      }
       setLoading(false)
 
       // Load agent price revision if one exists
@@ -584,7 +604,22 @@ export default function QuoteDetail() {
     }
   }
 
-  const agentApproved = 
+  const effStatus = resolveEffectiveQuoteStatus(quote)
+
+  const isEffCustomsApproved = Boolean(
+    effStatus === 'Approved by Customs and Awaiting for Customer confirmation' ||
+    effStatus === 'Approved by Customs' ||
+    effStatus === 'Approved' ||
+    quote?.status === 'Approved by Customs' ||
+    quote?.status === 'Approved by Customs and Awaiting for Customer confirmation' ||
+    quote?.pipeline_status === 'CUSTOMS_APPROVED' ||
+    quote?.customs_review?.status === 'approved'
+  )
+
+  const agentApproved = Boolean(
+    isEffCustomsApproved ||
+    effStatus === 'Approved by Agent and Awaiting Customs Clearance' ||
+    effStatus === 'Approved by Agent' ||
     quote?.agent_review?.status === 'approved' || 
     quote?.status === 'Approved by Agent' ||
     quote?.status === 'Agent Approved' ||
@@ -594,6 +629,7 @@ export default function QuoteDetail() {
     quote?.status === 'Approved by Customs and Awaiting for Customer confirmation' ||
     quote?.status === 'Approved' ||
     quote?.pipeline_status === 'CUSTOMS_APPROVED'
+  )
 
   const agentRejected = 
     quote?.agent_review?.status === 'rejected' || 
@@ -602,6 +638,7 @@ export default function QuoteDetail() {
     (quote?.status === 'Rejected' && !quote?.customer_decision?.status && quote?.customs_review?.status !== 'rejected')
 
   const customsApproved = Boolean(
+    isEffCustomsApproved ||
     quote?.customs_review?.status === 'approved' || 
     quote?.status === 'Approved by Customs' ||
     quote?.status === 'Approved by Customs and Awaiting for Customer confirmation' ||
@@ -617,6 +654,7 @@ export default function QuoteDetail() {
 
   const isQuoteBooked = Boolean(
     (quote?.status === 'Booked' ||
+     effStatus === 'Booked' ||
      quote?.pipeline_status === 'BOOKED' ||
      quote?.customer_decision?.status === 'BOOKED' ||
      quote?.booking_confirmed === true ||
@@ -1245,7 +1283,13 @@ export default function QuoteDetail() {
                         <span className="text-xs font-bold uppercase tracking-wider text-amber-950 block">Agent Revised Quote Price</span>
                         <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300">Updated by {activeEdit.agent_name || 'Freight Agent'}</span>
                         {quote?.customer_decision?.status === 'ACCEPTED' ? (
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">Accepted by Customer · Awaiting Agent Final Sign-off</span>
+                          customsApproved ? (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">Revised Price Agreed · Customs Approved</span>
+                          ) : agentApproved ? (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">Revised Price Agreed · Agent Approved</span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300">Accepted by Customer · Awaiting Agent Final Sign-off</span>
+                          )
                         ) : quote?.customer_decision?.status === 'REJECTED' ? (
                           <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 border border-rose-300">Declined by Customer</span>
                         ) : (
@@ -1674,7 +1718,7 @@ export default function QuoteDetail() {
                     </div>
                   </div>
 
-                  {quote.status === 'Revised Priced Accepted (Agent Approval Pending)' || quote.status === 'Price Accepted (Pending Agent Sign-off)' ? (
+                  {!customsApproved && (quote.status === 'Revised Priced Accepted (Agent Approval Pending)' || quote.status === 'Price Accepted (Pending Agent Sign-off)') ? (
                     <div className="rounded-xl bg-teal-50 border border-teal-300 p-5 text-center">
                       <Clock className="h-9 w-9 text-teal-600 mx-auto mb-2" />
                       <h4 className="text-base font-bold text-teal-950">Revised Price Offer Accepted</h4>

@@ -1032,13 +1032,15 @@ export function enrichQuoteWithLocalState(q) {
   const localMatch = localQuotes.find(lq => (lq.id || '').trim().toUpperCase() === normId)
   const agentActions = getAgentActions()
   const localAction = agentActions[q.id] || agentActions[normId]
+  const customsActions = getCustomsActions()
+  const localCustomsAction = customsActions[q.id] || customsActions[normId]
   const priceEdits = getAgentPriceEdits()
   const priceEdit = q.agent_price_edit || priceEdits[q.id] || priceEdits[normId]
 
-  // Remote review decisions take precedence if present; fallback to local
+  // Remote review decisions take precedence if present and active; fallback to local
   const customsReview = (q.customs_review && q.customs_review.status)
     ? q.customs_review
-    : (localMatch?.customs_review?.status ? localMatch.customs_review : (q.customs_review || localMatch?.customs_review || null))
+    : (localCustomsAction?.status ? localCustomsAction : (localMatch?.customs_review?.status ? localMatch.customs_review : (q.customs_review || localMatch?.customs_review || null)))
 
   const agentReview = (q.agent_review && q.agent_review.status)
     ? q.agent_review
@@ -1049,9 +1051,6 @@ export function enrichQuoteWithLocalState(q) {
     : (localMatch?.customer_decision?.status ? localMatch.customer_decision : (q.customer_decision || localMatch?.customer_decision || null))
 
   let customsDocReq = q.customs_document_request || localMatch?.customs_document_request || null
-  if (customsReview?.status === 'approved' && customsDocReq) {
-    customsDocReq = { ...customsDocReq, status: 'APPROVED' }
-  }
 
   // Deeply merge fields so latest server state and local state combine cleanly
   const merged = {
@@ -1072,10 +1071,29 @@ export function enrichQuoteWithLocalState(q) {
 
   const effectiveStatus = resolveEffectiveQuoteStatus(merged)
 
+  const isEffectiveCustomsApproved = 
+    effectiveStatus === 'Approved by Customs and Awaiting for Customer confirmation' ||
+    effectiveStatus === 'Approved by Customs' ||
+    effectiveStatus === 'CUSTOMS_APPROVED' ||
+    effectiveStatus === 'Booked'
+
+  const finalPipelineStatus = isEffectiveCustomsApproved && (!merged.pipeline_status || merged.pipeline_status === 'DOCS_SUBMITTED' || merged.pipeline_status === 'CUSTOMS_DOCS_REQUESTED')
+    ? (effectiveStatus === 'Booked' ? 'BOOKED' : 'CUSTOMS_APPROVED')
+    : (merged.pipeline_status || (effectiveStatus === 'Booked' ? 'BOOKED' : effectiveStatus.toUpperCase().replace(/\s+/g, '_')))
+
+  if (isEffectiveCustomsApproved && customsDocReq) {
+    customsDocReq = { ...customsDocReq, status: 'APPROVED' }
+  }
+
   return {
     ...merged,
     status: effectiveStatus,
-    pipeline_status: merged.pipeline_status || (effectiveStatus === 'Booked' ? 'BOOKED' : effectiveStatus.toUpperCase().replace(/\s+/g, '_'))
+    pipeline_status: finalPipelineStatus,
+    customs_document_request: customsDocReq,
+    ...(isEffectiveCustomsApproved ? {
+      customs_review: (customsReview && customsReview.status === 'approved') ? customsReview : { status: 'approved', officer_name: 'Customs Officer', reviewed_at: new Date().toISOString() },
+      customs_status: 'Approved by Customs and Awaiting for Customer confirmation'
+    } : {})
   }
 }
 
@@ -1184,6 +1202,7 @@ export async function clearAllQuotes() {
     localStorage.setItem('portline_quotes_cleared', 'true')
     localStorage.removeItem('portline_deleted_quote_ids')
     localStorage.removeItem('portline_agent_actions')
+    localStorage.removeItem('portline_customs_actions')
     localStorage.removeItem('portline_agent_messages')
     localStorage.removeItem('portline_customs_cases')
     localStorage.removeItem('portline_agent_price_revisions')
@@ -1423,6 +1442,17 @@ export async function agentActionOnQuote(quoteId, action, comment, agentUser) {
 export function getAgentActions() {
   try {
     const raw = localStorage.getItem('portline_agent_actions')
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const CUSTOMS_ACTIONS_KEY = 'portline_customs_actions'
+
+export function getCustomsActions() {
+  try {
+    const raw = localStorage.getItem(CUSTOMS_ACTIONS_KEY)
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
@@ -1905,23 +1935,60 @@ export async function customsActionOnQuote(quoteId, action, { requestedDocs = []
     ? 'Approved by Customs and Awaiting for Customer confirmation'
     : (action === 'reject' ? 'Rejected by Customs' : 'Documents Requested by Customs')
   const pipeline_status = action === 'approve' ? 'CUSTOMS_APPROVED' : (action === 'reject' ? 'CUSTOMS_REJECTED' : 'CUSTOMS_DOCS_REQUESTED')
-  
-  // Always update local storage quotes
+  const targetQid = String(quoteId || '').trim().toUpperCase()
+
+  const reviewObj = {
+    action,
+    status: action === 'approve' ? 'approved' : (action === 'reject' ? 'rejected' : 'docs_requested'),
+    officer_name: officerUser?.name || 'Customs Officer',
+    officer_email: officerUser?.email || '',
+    reviewed_at: new Date().toISOString(),
+    notes: comment,
+    requested_docs: requestedDocs
+  }
+
+  // Persist into standalone customs actions storage
   try {
-    const all = getSavedQuotes()
-    const updated = all.map(q => q.id === quoteId ? {
-      ...q,
-      status,
-      customs_status: status,
-      pipeline_status,
-      customs_review: action === 'approve' 
-        ? { status: 'approved', officer_name: officerUser?.name || 'Customs Officer', reviewed_at: new Date().toISOString(), notes: comment } 
-        : (action === 'reject' ? { status: 'rejected', officer_name: officerUser?.name || 'Customs Officer', reviewed_at: new Date().toISOString(), notes: comment } : null),
-      customs_document_request: action === 'request_documents' 
-        ? { requested_docs: requestedDocs, officer_notes: comment, status: 'PENDING_CUSTOMER_UPLOAD', requested_at: new Date().toISOString() } 
-        : (action === 'approve' ? { ...(q.customs_document_request || {}), status: 'APPROVED', approved_at: new Date().toISOString() } : q.customs_document_request)
-    } : q)
-    localStorage.setItem(QUOTES_STORAGE_KEY, JSON.stringify(updated))
+    const customActions = getCustomsActions()
+    customActions[quoteId] = reviewObj
+    customActions[targetQid] = reviewObj
+    localStorage.setItem(CUSTOMS_ACTIONS_KEY, JSON.stringify(customActions))
+  } catch {}
+  
+  // Update local storage quotes across all potential user keys
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && (k === QUOTES_STORAGE_KEY || k.startsWith('portline_quotes_') || k.startsWith('portline_quote_'))) {
+        const raw = localStorage.getItem(k)
+        if (raw) {
+          try {
+            const arr = JSON.parse(raw)
+            if (Array.isArray(arr)) {
+              const updated = arr.map(q => {
+                const qid = String(q.id || '').trim().toUpperCase()
+                if (qid === targetQid) {
+                  return {
+                    ...q,
+                    status,
+                    customs_status: status,
+                    pipeline_status,
+                    customs_review: action === 'approve' 
+                      ? { status: 'approved', officer_name: officerUser?.name || 'Customs Officer', reviewed_at: new Date().toISOString(), notes: comment } 
+                      : (action === 'reject' ? { status: 'rejected', officer_name: officerUser?.name || 'Customs Officer', reviewed_at: new Date().toISOString(), notes: comment } : null),
+                    customs_document_request: action === 'request_documents' 
+                      ? { requested_docs: requestedDocs, officer_notes: comment, status: 'PENDING_CUSTOMER_UPLOAD', requested_at: new Date().toISOString() } 
+                      : (action === 'approve' ? { ...(q.customs_document_request || {}), status: 'APPROVED', approved_at: new Date().toISOString() } : q.customs_document_request)
+                  }
+                }
+                return q
+              })
+              localStorage.setItem(k, JSON.stringify(updated))
+            }
+          } catch {}
+        }
+      }
+    }
   } catch {}
 
   // Also update any matching shipments in localStorage across user keys
