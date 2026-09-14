@@ -933,7 +933,7 @@ export default function QuoteDetail() {
                       type="button"
                       disabled={deciding}
                       onClick={() => setShowDeclineModal(true)}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-300 bg-white px-4 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50 whitespace-nowrap"
                     >
                       <X className="h-3.5 w-3.5" /> Decline
                     </button>
@@ -1289,7 +1289,7 @@ export default function QuoteDetail() {
                           type="button"
                           disabled={deciding}
                           onClick={() => setShowDeclineModal(true)}
-                          className="rounded-xl border border-amber-400 bg-white px-4 py-2.5 text-xs font-semibold text-amber-950 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400 bg-white px-4 py-2.5 text-xs font-semibold text-amber-950 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors disabled:opacity-50 whitespace-nowrap"
                         >
                           <ThumbsDown className="h-3.5 w-3.5" /> Decline
                         </button>
