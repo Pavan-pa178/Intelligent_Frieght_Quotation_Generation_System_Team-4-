@@ -16,7 +16,7 @@ import {
   adminCreateUser, adminUpdateUser, adminDeleteUser,
   agentActionOnQuote, clearAllQuotes, deleteQuote,
   fetchCompanies, verifyCompany, createCompany, addCompanyAgent, removeCompanyAgent,
-  resolveEffectiveQuoteStatus
+  resolveEffectiveQuoteStatus, resolveEffectiveShipmentStatus, resolveEffectiveShipmentCost
 } from '../lib/api'
 import { routeAnalytics, resolveAssignedAgent } from '../lib/mockData'
 
@@ -480,6 +480,7 @@ export default function Admin() {
   const filteredShipments = shipments.filter(s => {
     if (!shipSearch) return true
     const q = shipSearch.toLowerCase()
+    const effStatus = resolveEffectiveShipmentStatus(s, quotes).toLowerCase()
     return (s.tn || '').toLowerCase().includes(q) || 
            (s.from || '').toLowerCase().includes(q) || 
            (s.to || '').toLowerCase().includes(q) ||
@@ -487,7 +488,8 @@ export default function Admin() {
            (s.userCompany || '').toLowerCase().includes(q) ||
            (s.user_email || '').toLowerCase().includes(q) ||
            (s.destinationContactName || '').toLowerCase().includes(q) ||
-           (s.destinationCompany || '').toLowerCase().includes(q)
+           (s.destinationCompany || '').toLowerCase().includes(q) ||
+           effStatus.includes(q)
   })
 
   const filteredUsers = usersList.filter(u => {
@@ -1522,10 +1524,13 @@ export default function Admin() {
                           <td className="px-4 py-3 text-xs text-brand-slate">{s.service || 'N/A'}</td>
                           <td className="px-4 py-3 font-mono text-xs">{s.weight ? `${Number(s.weight).toLocaleString()} kg` : 'N/A'}</td>
                           <td className="px-4 py-3 font-mono text-xs font-semibold text-brand-navy">
-                            {s.cost ? `Rs.${Number(s.cost).toLocaleString('en-IN')}` : 'N/A'}
+                            {(() => {
+                              const effCost = resolveEffectiveShipmentCost(s, quotes)
+                              return effCost ? `Rs.${Number(effCost).toLocaleString('en-IN')}` : (s.cost ? `Rs.${Number(s.cost).toLocaleString('en-IN')}` : 'N/A')
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-xs text-brand-slate">{s.date || 'N/A'}</td>
-                          <td className="px-4 py-3"><StatusBadge status={s.status || 'Booked'} /></td>
+                          <td className="px-4 py-3"><StatusBadge status={resolveEffectiveShipmentStatus(s, quotes)} /></td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <button
                               type="button"

@@ -272,6 +272,20 @@ class QuoteAgentActionView(APIView):
                     'customer_decision': None
                 })
 
+                # Also sync linked shipment
+                shipment_update = {
+                    'status': 'Price Revised (Awaiting Customer Decision)',
+                    'pipeline_status': 'PRICE_REVISED',
+                    'cost': revised_price
+                }
+                storage.update_shipments_by_quote_id(qid, shipment_update)
+                shipments_col = get_collection('shipments')
+                if shipments_col is not None:
+                    shipments_col.update_many(
+                        {'$or': [{'quote_id': qid}, {'quoteId': qid}, {'id': qid}]},
+                        {'$set': shipment_update}
+                    )
+
                 fresh_q = _find_quote_anywhere(qid)
                 return Response({
                     'ok': True,
@@ -347,12 +361,25 @@ class QuoteAgentActionView(APIView):
             _update_quote_anywhere(qid, update_data)
 
             # Update shipment if linked
+            shipment_status = quote_status
+            shipment_update = {
+                'pipeline_status': pipeline_status,
+                'status': shipment_status
+            }
+            if has_accepted_revision and action == 'approved' and rev_val > 0:
+                shipment_update['cost'] = rev_val
+
+            storage.update_shipments_by_quote_id(qid, shipment_update)
             shipments_col = get_collection('shipments')
-            if shipments_col is not None and q and q.get('shipment_id'):
-                shipment_status = 'In Review' if action == 'approved' else 'Rejected'
-                shipments_col.update_one(
-                    {'shipment_id': q.get('shipment_id')},
-                    {'$set': {'pipeline_status': pipeline_status, 'status': shipment_status}}
+            if shipments_col is not None:
+                query_clauses = [{'quote_id': qid}, {'quoteId': qid}, {'id': qid}]
+                if q and q.get('shipment_id'):
+                    query_clauses.append({'shipment_id': q.get('shipment_id')})
+                if q and q.get('tn'):
+                    query_clauses.append({'tn': q.get('tn')})
+                shipments_col.update_many(
+                    {'$or': query_clauses},
+                    {'$set': shipment_update}
                 )
         except Exception as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -520,11 +547,13 @@ class QuoteCustomsActionView(APIView):
                 if q.get('tn'):
                     shipment_query.append({'tn': q.get('tn')})
                 if shipment_query:
-                    shipment_update = {'customs_status': status_label}
+                    shipment_update = {'customs_status': status_label, 'status': status_label}
                     if action == 'approve':
                         shipment_update['customs_verified'] = True
                         shipment_update['pipeline_status'] = 'CUSTOMS_APPROVED'
-                        shipment_update['status'] = 'Approved'
+                    elif action == 'reject':
+                        shipment_update['pipeline_status'] = 'CUSTOMS_REJECTED'
+                    storage.update_shipments_by_quote_id(qid, shipment_update)
                     shipments_col.update_many(
                         {'$or': shipment_query},
                         {'$set': shipment_update}
@@ -673,25 +702,27 @@ class QuoteCustomerDecisionView(APIView):
             _update_quote_anywhere(qid, update_payload)
 
             # If shipment linked, update shipment too
+            shipment_status = quote_status
+            pipe_status = 'CONFIRMED' if quote_status == 'Booked' else ('PRICE_ACCEPTED_PENDING_AGENT' if is_revision_acceptance else 'CANCELLED')
+            query_clauses = [{'quote_id': qid}, {'quoteId': qid}]
+            if q.get('shipment_id'):
+                query_clauses.append({'shipment_id': q.get('shipment_id')})
+            if q.get('tn'):
+                query_clauses.append({'tn': q.get('tn')})
+
+            shipment_update = {
+                'pipeline_status': pipe_status,
+                'status': shipment_status,
+                'booking_status': 'CONFIRMED' if quote_status == 'Booked' else shipment_status,
+                'cost': effective_cost,
+                'carrier': q.get('selected_route', {}).get('carrier') or q.get('carrier') or 'Standard Carrier'
+            }
+            storage.update_shipments_by_quote_id(qid, shipment_update)
             shipments_col = get_collection('shipments')
             if shipments_col is not None and q:
-                shipment_status = 'Booked' if quote_status == 'Booked' else ('Under Review' if is_revision_acceptance else 'Cancelled')
-                pipe_status = 'CONFIRMED' if quote_status == 'Booked' else ('REVISION_ACCEPTED' if is_revision_acceptance else 'CANCELLED')
-                query_clauses = [{'quote_id': qid}, {'quoteId': qid}]
-                if q.get('shipment_id'):
-                    query_clauses.append({'shipment_id': q.get('shipment_id')})
-                if q.get('tn'):
-                    query_clauses.append({'tn': q.get('tn')})
-
                 matched_res = shipments_col.update_many(
                     {'$or': query_clauses},
-                    {'$set': {
-                        'pipeline_status': pipe_status,
-                        'status': shipment_status,
-                        'booking_status': 'CONFIRMED' if quote_status == 'Booked' else shipment_status,
-                        'cost': effective_cost,
-                        'carrier': q.get('selected_route', {}).get('carrier') or q.get('carrier') or 'Standard Carrier'
-                    }}
+                    {'$set': shipment_update}
                 )
 
                 # If booked and no shipment document existed yet in MongoDB, create it so tracking and portals show it immediately

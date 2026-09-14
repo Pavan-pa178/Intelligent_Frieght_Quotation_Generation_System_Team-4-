@@ -490,6 +490,9 @@ export default function Ship() {
 
     const quoteRecord = {
       id: quoteId,
+      tn,
+      tracking_number: tn,
+      shipment_id: tn,
       user_email: quoteUserEmail,
       customer: quoteCompany,
       city: originGw.city,

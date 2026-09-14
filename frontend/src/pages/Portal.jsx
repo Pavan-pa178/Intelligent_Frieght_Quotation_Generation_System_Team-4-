@@ -5,7 +5,7 @@ import PageBanner from '../components/PageBanner'
 import StatusBadge from '../components/StatusBadge'
 import { useApp } from '../context/AppContext'
 import { useToast } from '../context/ToastContext'
-import { updateUserProfile, fetchQuotes, customerDecisionOnQuote, resolveEffectiveQuoteStatus, sortQuotesByTime } from '../lib/api'
+import { updateUserProfile, fetchQuotes, customerDecisionOnQuote, resolveEffectiveQuoteStatus, resolveEffectiveShipmentStatus, resolveEffectiveShipmentCost, sortQuotesByTime } from '../lib/api'
 
 export default function Portal() {
   const { loggedIn, user, shipments = [], logout, cancelShipment, deleteShipment, updateProfile } = useApp()
@@ -609,10 +609,12 @@ export default function Portal() {
                     <div className="divide-y divide-brand-line/60">
                       {filteredShipments.map((s, idx) => {
                         const serviceStr = String(s?.service || '')
-                        const costVal = Number(s?.cost || 0)
+                        const effCost = resolveEffectiveShipmentCost(s, quotes)
+                        const costVal = effCost || Number(s?.cost || 0)
+                        const effStatus = resolveEffectiveShipmentStatus(s, quotes)
                         const tn = s?.tn || s?.trackingNumber || ('PORT-' + idx)
-                        const isCancelled = s?.status === 'Cancelled'
-                        const isDelivered = s?.status === 'Delivered'
+                        const isCancelled = effStatus === 'Cancelled' || s?.status === 'Cancelled'
+                        const isDelivered = effStatus === 'Delivered' || s?.status === 'Delivered'
                         const canCancel = !isCancelled && !isDelivered
 
                         return (
@@ -652,7 +654,7 @@ export default function Portal() {
 
                               {/* Right: Status & Cost */}
                               <div className="flex-shrink-0 text-right">
-                                <StatusBadge status={s?.status || 'Booked'} />
+                                <StatusBadge status={effStatus} />
                                 <div className="mt-1.5 font-mono text-[15px] font-bold text-brand-navy"> Rs. {costVal.toLocaleString('en-IN')}
                                 </div>
                               </div>

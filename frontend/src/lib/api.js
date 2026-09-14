@@ -533,11 +533,18 @@ export async function fetchShipments(email = '') {
 
   if (MOCK_MODE) {
     await delay(20)
-    return getLocalShipments()
+    const local = getLocalShipments()
+    const allQuotes = getSavedQuotes()
+    return local.map(s => ({
+      ...s,
+      status: resolveEffectiveShipmentStatus(s, allQuotes),
+      cost: resolveEffectiveShipmentCost(s, allQuotes) || s.cost
+    }))
   }
   const query = email ? `?email=${encodeURIComponent(email)}` : ''
   try {
     const res = await apiFetch(`/api/v1/shipments/${query}`)
+    const allQuotes = getSavedQuotes()
     if (Array.isArray(res)) {
       const validBackend = res.filter(s => {
         const idKey = (s.tn || s.id || s.shipment_id || '').toUpperCase()
@@ -552,11 +559,24 @@ export async function fetchShipments(email = '') {
         const idKey = (s.tn || s.id || s.shipment_id || '').toUpperCase()
         return idKey && !seen.has(idKey) && !deletedShipments.has(idKey)
       })
-      return [...validBackend, ...extras]
+      return [...validBackend, ...extras].map(s => ({
+        ...s,
+        status: resolveEffectiveShipmentStatus(s, allQuotes),
+        cost: resolveEffectiveShipmentCost(s, allQuotes) || s.cost
+      }))
     }
-    return getLocalShipments()
+    return getLocalShipments().map(s => ({
+      ...s,
+      status: resolveEffectiveShipmentStatus(s, allQuotes),
+      cost: resolveEffectiveShipmentCost(s, allQuotes) || s.cost
+    }))
   } catch {
-    return getLocalShipments()
+    const allQuotes = getSavedQuotes()
+    return getLocalShipments().map(s => ({
+      ...s,
+      status: resolveEffectiveShipmentStatus(s, allQuotes),
+      cost: resolveEffectiveShipmentCost(s, allQuotes) || s.cost
+    }))
   }
 }
 
@@ -901,6 +921,101 @@ export function resolveEffectiveQuoteStatus(q) {
   return rawStatus
 }
 
+export function resolveEffectiveShipmentStatus(s, quotes = []) {
+  if (!s) return 'Quotation Pending'
+
+  // Physical fulfillment terminal statuses take precedence once cargo is physically moving
+  const rawStatus = (s.status || '').trim()
+  if (
+    rawStatus === 'Delivered' ||
+    rawStatus === 'In transit' ||
+    rawStatus === 'Out for delivery' ||
+    rawStatus === 'Picked up' ||
+    rawStatus === 'Customs clearance' ||
+    rawStatus === 'Cancelled'
+  ) {
+    return rawStatus
+  }
+
+  // Look for matching quote
+  const quoteId = (s.quote_id || s.quoteId || '').trim().toUpperCase()
+  const shipmentTn = (s.tn || s.shipment_id || s.id || '').trim().toUpperCase()
+
+  const allQuotes = (Array.isArray(quotes) && quotes.length > 0) ? quotes : getSavedQuotes()
+
+  let matchingQuote = allQuotes.find(q => {
+    const qid = (q.id || '').trim().toUpperCase()
+    const qtn = (q.tn || q.tracking_number || '').trim().toUpperCase()
+    const qShipId = (q.shipment_id || '').trim().toUpperCase()
+    
+    if (quoteId && (qid === quoteId || qShipId === quoteId)) return true
+    if (shipmentTn && (qid === shipmentTn || qtn === shipmentTn || qShipId === shipmentTn)) return true
+    return false
+  })
+
+  // Fallback: match by email + cities
+  if (!matchingQuote && s.from && s.to) {
+    const sEmail = (s.user_email || '').trim().toLowerCase()
+    const sFromCity = (s.from || '').split(',')[0].trim().toLowerCase()
+    const sToCity = (s.to || '').split(',')[0].trim().toLowerCase()
+
+    matchingQuote = allQuotes.find(q => {
+      const qEmail = (q.user_email || '').trim().toLowerCase()
+      if (sEmail && qEmail && sEmail !== qEmail) return false
+      const laneText = `${q.laneName || ''} ${q.laneCode || ''} ${q.city || ''}`.toLowerCase()
+      return laneText.includes(sFromCity) && laneText.includes(sToCity)
+    })
+  }
+
+  if (matchingQuote) {
+    return resolveEffectiveQuoteStatus(matchingQuote)
+  }
+
+  return rawStatus || 'Quotation Pending'
+}
+
+export function resolveEffectiveShipmentCost(s, quotes = []) {
+  if (!s) return 0
+  const quoteId = (s.quote_id || s.quoteId || '').trim().toUpperCase()
+  const shipmentTn = (s.tn || s.shipment_id || s.id || '').trim().toUpperCase()
+
+  const allQuotes = (Array.isArray(quotes) && quotes.length > 0) ? quotes : getSavedQuotes()
+
+  let matchingQuote = allQuotes.find(q => {
+    const qid = (q.id || '').trim().toUpperCase()
+    const qtn = (q.tn || q.tracking_number || '').trim().toUpperCase()
+    const qShipId = (q.shipment_id || '').trim().toUpperCase()
+    
+    if (quoteId && (qid === quoteId || qShipId === quoteId)) return true
+    if (shipmentTn && (qid === shipmentTn || qtn === shipmentTn || qShipId === shipmentTn)) return true
+    return false
+  })
+
+  if (!matchingQuote && s.from && s.to) {
+    const sEmail = (s.user_email || '').trim().toLowerCase()
+    const sFromCity = (s.from || '').split(',')[0].trim().toLowerCase()
+    const sToCity = (s.to || '').split(',')[0].trim().toLowerCase()
+
+    matchingQuote = allQuotes.find(q => {
+      const qEmail = (q.user_email || '').trim().toLowerCase()
+      if (sEmail && qEmail && sEmail !== qEmail) return false
+      const laneText = `${q.laneName || ''} ${q.laneCode || ''} ${q.city || ''}`.toLowerCase()
+      return laneText.includes(sFromCity) && laneText.includes(sToCity)
+    })
+  }
+
+  if (matchingQuote) {
+    const revPrice = matchingQuote.agent_price_edit?.revised_price
+    if (revPrice && Number(revPrice) > 0) {
+      return Number(revPrice)
+    }
+    return Number(matchingQuote.indicativeTotal || matchingQuote.cost || s.cost || 0)
+  }
+
+  return Number(s.cost || 0)
+}
+
+
 export function sortQuotesByTime(list) {
   if (!Array.isArray(list)) return []
   return [...list].sort((a, b) => {
@@ -1238,29 +1353,40 @@ export async function agentActionOnQuote(quoteId, action, comment, agentUser) {
     actions[quoteId] = reviewObj
     localStorage.setItem(AGENT_ACTIONS_KEY, JSON.stringify(actions))
 
-    // If accepted and shipment linked, update shipment to Booked
-    if (quote_status === 'Accepted') {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i)
-        if (k && k.startsWith('portline_shipments_')) {
-          try {
-            const rawShp = localStorage.getItem(k)
-            if (rawShp) {
-              const shps = JSON.parse(rawShp)
-              if (Array.isArray(shps)) {
-                let changed = false
-                const mapped = shps.map(s => {
-                  if (s.quote_id === quoteId || s.quoteId === quoteId) {
-                    changed = true
-                    return { ...s, status: 'Booked', pipeline_status: 'CONFIRMED' }
+    // Update linked shipment across localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && (k.startsWith('portline_shipments_') || k === 'portline_customer_shipments')) {
+        try {
+          const rawShp = localStorage.getItem(k)
+          if (rawShp) {
+            const shps = JSON.parse(rawShp)
+            if (Array.isArray(shps)) {
+              let changed = false
+              const mapped = shps.map(s => {
+                const sQuoteId = (s.quote_id || s.quoteId || '').trim().toUpperCase()
+                const sTn = (s.tn || s.shipment_id || s.id || '').trim().toUpperCase()
+                const targetTn = (targetQ?.tn || targetQ?.tracking_number || '').trim().toUpperCase()
+                const targetShpId = (targetQ?.shipment_id || '').trim().toUpperCase()
+                if (
+                  sQuoteId === targetQid ||
+                  (sTn && targetTn && sTn === targetTn) ||
+                  (targetShpId && (s.id === targetShpId || s.shipment_id === targetShpId))
+                ) {
+                  changed = true
+                  return {
+                    ...s,
+                    status: quote_status,
+                    pipeline_status: pipeStatus,
+                    ...(revisedVal ? { cost: revisedVal } : {})
                   }
-                  return s
-                })
-                if (changed) localStorage.setItem(k, JSON.stringify(mapped))
-              }
+                }
+                return s
+              })
+              if (changed) localStorage.setItem(k, JSON.stringify(mapped))
             }
-          } catch {}
-        }
+          }
+        } catch {}
       }
     }
   } catch {}
@@ -1382,8 +1508,39 @@ export function saveAgentPriceEdit(quoteId, newPrice, reason, agentUser) {
       }
     }
 
+    // Also sync linked shipments in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && (k.startsWith('portline_shipments_') || k === 'portline_customer_shipments')) {
+        try {
+          const rawShp = localStorage.getItem(k)
+          if (rawShp) {
+            const shps = JSON.parse(rawShp)
+            if (Array.isArray(shps)) {
+              let changed = false
+              const mapped = shps.map(s => {
+                const sQuoteId = (s.quote_id || s.quoteId || '').trim().toUpperCase()
+                if (sQuoteId === normalizedId || s.id === normalizedId) {
+                  changed = true
+                  return {
+                    ...s,
+                    status: 'Price Revised (Awaiting Customer Decision)',
+                    pipeline_status: 'PRICE_REVISED',
+                    cost: numPrice > 0 ? numPrice : s.cost
+                  }
+                }
+                return s
+              })
+              if (changed) localStorage.setItem(k, JSON.stringify(mapped))
+            }
+          }
+        } catch {}
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('portline_quote_updated', { detail: { quoteId, revised_price: numPrice } }))
+      window.dispatchEvent(new CustomEvent('portline_shipment_updated', { detail: { quoteId, revised_price: numPrice } }))
     }
 
     return record || { cleared: true }
@@ -1515,7 +1672,15 @@ export async function customerDecisionOnQuote(quoteId, decision, notes = '', cus
             if (Array.isArray(shps)) {
               let changed = false
               const mapped = shps.map(s => {
-                if (s.quote_id === quoteId || s.quoteId === quoteId || s.id === targetQ?.shipment_id) {
+                const sQuoteId = (s.quote_id || s.quoteId || '').trim().toUpperCase()
+                const sTn = (s.tn || s.shipment_id || s.id || '').trim().toUpperCase()
+                const targetTn = (targetQ?.tn || targetQ?.tracking_number || '').trim().toUpperCase()
+                const targetShpId = (targetQ?.shipment_id || '').trim().toUpperCase()
+                if (
+                  sQuoteId === targetQid ||
+                  (sTn && targetTn && sTn === targetTn) ||
+                  (targetShpId && (s.id === targetShpId || s.shipment_id === targetShpId))
+                ) {
                   changed = true
                   shipmentFound = true
                   const updatedSteps = (s.steps || []).map(st => {
@@ -1529,8 +1694,8 @@ export async function customerDecisionOnQuote(quoteId, decision, notes = '', cus
                   })
                   return {
                     ...s,
-                    status: isBooking ? 'Booked' : (isDecline ? 'Cancelled' : s.status),
-                    pipeline_status: isBooking ? 'CONFIRMED' : (isDecline ? 'CANCELLED' : s.pipeline_status),
+                    status: isBooking ? 'Booked' : (isDecline ? (isDeclineBooking ? `Booking decline by Customer (${custName})` : 'Revised Price Declined') : status),
+                    pipeline_status: isBooking ? 'CONFIRMED' : (isRevisionAcceptance ? 'PRICE_ACCEPTED_PENDING_AGENT' : (isDecline ? 'REJECTED' : s.pipeline_status)),
                     booking_status: isBooking ? 'CONFIRMED' : s.booking_status,
                     carrier: effectiveCarrier,
                     cost: effectiveTotal || s.cost,
@@ -1775,7 +1940,7 @@ export async function customsActionOnQuote(quoteId, action, { requestedDocs = []
                   customs_status: status,
                   customs_verified: action === 'approve',
                   pipeline_status,
-                  status: action === 'approve' ? 'Approved by Customs' : s.status
+                  status: status
                 }
               }
               return s
