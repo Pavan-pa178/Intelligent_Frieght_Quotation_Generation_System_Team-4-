@@ -648,8 +648,9 @@ export default function Ship() {
               
               {/* STEP 1: ROUTE */}
               <FormSection num={1} title="Route">
-                <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_1fr]">
-                  {/* Origin Gateway */}
+                <div className="relative">
+                  <div className="grid grid-cols-1 items-end gap-x-12 gap-y-4 sm:grid-cols-2">
+                    {/* Origin Gateway */}
                   <div ref={originDropdownRef} className="relative">
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-[13px] font-semibold text-brand-navy">
@@ -794,18 +795,20 @@ export default function Ship() {
                     )}
                   </div>
 
-                  {/* Swap button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (checkAuthGate()) return
-                      handleSwap()
-                    }}
-                    className="mx-auto mb-0.5 flex h-[42px] w-[42px] items-center justify-center rounded-full border-[1.5px] border-brand-line bg-brand-cloud text-brand-marine transition-transform hover:rotate-180 hover:bg-brand-marinePale shadow-xs"
-                    title="Swap origin and destination"
-                  >
-                    <ArrowLeftRight className="h-[18px] w-[18px]" />
-                  </button>
+                  {/* Mobile Swap button */}
+                  <div className="flex sm:hidden justify-center -my-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (checkAuthGate()) return
+                        handleSwap()
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-brand-line bg-white text-brand-marine shadow-2xs transition-transform hover:rotate-180"
+                      title="Swap origin and destination"
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5 rotate-90" />
+                    </button>
+                  </div>
 
                   {/* Destination Gateway */}
                   <div ref={destDropdownRef} className="relative">
@@ -950,9 +953,23 @@ export default function Ship() {
                       </>
                     )}
                   </div>
+                  </div>
+
+                  {/* Desktop Swap button centered between Origin and Destination */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (checkAuthGate()) return
+                      handleSwap()
+                    }}
+                    className="hidden sm:flex absolute left-1/2 bottom-[6px] -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-brand-line bg-white text-brand-marine shadow-sm transition-transform hover:rotate-180 hover:bg-brand-marinePale"
+                    title="Swap origin and destination"
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
 
-                <div className="mt-[18px] grid grid-cols-1 gap-[18px] sm:grid-cols-2">
+                <div className="mt-6 grid grid-cols-1 gap-x-12 gap-y-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold text-brand-navy">
                       Pickup address <span className="text-brand-danger">*</span>
@@ -1025,7 +1042,7 @@ export default function Ship() {
                   </div>
                 </div>
 
-                <div className="mt-[18px] grid grid-cols-1 gap-[18px] sm:grid-cols-2">
+                <div className="mt-6 grid grid-cols-1 gap-x-12 gap-y-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-[13px] font-semibold text-brand-navy">
                       Ready date <span className="text-brand-danger">*</span>
@@ -2166,7 +2183,7 @@ export default function Ship() {
 function FormSection({ num, title, children }) {
   return (
     <div>
-      <div className="mb-[18px] flex items-center gap-3">
+      <div className="mb-5 flex items-center gap-3">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-navy font-display text-[13px] font-bold text-white">
           {num}
         </div>
