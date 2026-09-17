@@ -269,30 +269,73 @@ function TrackResult({ shipment, onOpenUpload }) {
         </div>
       </div>
 
-      <div className="relative pl-2">
-        <div className="absolute bottom-2 left-[19px] top-2 w-0.5 bg-brand-line">
-          <div className="w-full rounded-full bg-brand-orange transition-[height] duration-1000" style={{ height: `${pct}%` }} />
-        </div>
-        {steps.map((step, i) => (
-          <div key={i} className="relative flex gap-5 pb-[34px] last:pb-0">
-            <div
-              className={`z-10 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 ${
-                step.current
-                  ? 'border-brand-orange bg-brand-orange text-white ring-[6px] ring-brand-orangePale'
-                  : step.done
-                  ? 'border-brand-orange bg-brand-orangePale text-brand-orange'
-                  : 'border-brand-line bg-white text-brand-slateLight'
-              }`}
-            >
-              {step.done ? <Check className="h-[18px] w-[18px]" /> : <Clock className="h-[18px] w-[18px]" />}
-            </div>
-            <div className="pt-1.5">
-              <h4 className="mb-0.5 text-[15px] font-semibold">{step.label}</h4>
-              <p className="text-[13px] text-brand-slate">{step.loc}</p>
-              <div className="mt-1 font-mono text-[11.5px] text-brand-slateLight">{step.ts}</div>
-            </div>
+      <div className="rounded-md2 border border-brand-line bg-white p-7 sm:p-8 shadow-xs">
+        <div className="mb-7 flex items-center justify-between border-b border-brand-line/70 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-brand-navy">Milestone Tracking & Route Path</h3>
+            <p className="text-xs text-brand-slate mt-0.5">Live checkpoints and statutory customs clearance inspection log</p>
           </div>
-        ))}
+          <span className="rounded-full bg-brand-cloud px-3 py-1 font-mono text-xs font-semibold text-brand-navy border border-brand-line">
+            {doneCount} / {steps.length} Complete
+          </span>
+        </div>
+
+        <div className="space-y-0">
+          {steps.map((step, i) => {
+            const isLast = i === steps.length - 1
+            const isLineActive = step.done && (steps[i + 1]?.done || steps[i + 1]?.current)
+            return (
+              <div key={i} className="flex gap-4 sm:gap-5">
+                {/* Timeline Column: Icon Circle + Mathematically Centered Connector Line */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
+                      step.current
+                        ? 'border-brand-orange bg-brand-orange text-white ring-4 ring-brand-orangePale shadow-xs'
+                        : step.done
+                        ? 'border-brand-orange bg-brand-orange text-white shadow-2xs'
+                        : 'border-brand-line bg-white text-brand-slateLight'
+                    }`}
+                  >
+                    {step.done ? (
+                      <Check className="h-4 w-4 stroke-[2.5]" />
+                    ) : (
+                      <Clock className="h-4 w-4" />
+                    )}
+                  </div>
+                  {!isLast && (
+                    <div
+                      className={`w-0.5 grow min-h-[36px] my-1 transition-colors ${
+                        isLineActive ? 'bg-brand-orange' : 'bg-brand-line'
+                      }`}
+                    />
+                  )}
+                </div>
+
+                {/* Milestone Details Column */}
+                <div className={`pt-1.5 ${!isLast ? 'pb-7 sm:pb-8' : 'pb-1'} min-w-0 flex-1`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className={`text-[15px] font-semibold ${step.done || step.current ? 'text-brand-navy' : 'text-brand-slate'}`}>
+                      {step.label}
+                    </h4>
+                    {step.current && (
+                      <span className="rounded-full bg-brand-orangePale px-2 py-0.5 text-[10.5px] font-bold text-brand-orange">
+                        Active Checkpoint
+                      </span>
+                    )}
+                    {step.done && !step.current && (
+                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold">
+                        Completed
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] text-brand-slate mt-0.5">{step.loc}</p>
+                  <div className="mt-1 font-mono text-[11.5px] text-brand-slateLight">{step.ts}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

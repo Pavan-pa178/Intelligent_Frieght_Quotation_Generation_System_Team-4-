@@ -91,6 +91,19 @@ export default function Navbar() {
     navigate('/login')
   }
 
+  const handleNavClick = () => {
+    document.documentElement.style.scrollBehavior = 'auto'
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+    document.documentElement.style.scrollBehavior = ''
+    setMobileOpen(false)
+  }
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll)
@@ -114,7 +127,7 @@ export default function Navbar() {
         }`}
       >
         <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
-          <Link to={getBrandHomeLink()} className="flex items-center gap-3 shrink-0 group py-1">
+          <Link to={getBrandHomeLink()} onClick={handleNavClick} className="flex items-center gap-3 shrink-0 group py-1">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-orange to-brand-orangeLight/80 p-2 text-white shadow-md shadow-brand-orange/20 transition-transform group-hover:scale-105">
               <Container className="h-6 w-6 text-white" strokeWidth={1.8} />
             </div>
@@ -133,7 +146,7 @@ export default function Navbar() {
             <ul className="hidden items-center gap-1 md:flex">
               {navItems.map((item) => (
                 <li key={item.to}>
-                  <NavLink to={item.to} className={linkClass} end={item.to === '/'}>
+                  <NavLink to={item.to} onClick={handleNavClick} className={linkClass} end={item.to === '/'}>
                     {item.label}
                   </NavLink>
                 </li>
@@ -172,12 +185,13 @@ export default function Navbar() {
               <div className="flex items-center gap-2.5">
                 <Link
                   to="/ship"
+                  onClick={handleNavClick}
                   className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-br from-brand-orange to-brand-orangeLight px-4 py-2 text-[13.5px] font-semibold text-white shadow-[0_10px_24px_-8px_rgba(217,80,10,.55)] transition-transform hover:-translate-y-0.5"
                 >
                   New Enquiry
                 </Link>
 
-                <Link to="/login" className="rounded-lg px-3.5 py-2 text-[13.5px] font-semibold text-slate-300 transition-colors hover:bg-white/10 hover:text-white">
+                <Link to="/login" onClick={handleNavClick} className="rounded-lg px-3.5 py-2 text-[13.5px] font-semibold text-slate-300 transition-colors hover:bg-white/10 hover:text-white">
                   Log in
                 </Link>
               </div>
@@ -237,7 +251,7 @@ export default function Navbar() {
 
             <Link
               to={user?.role === 'customer' ? '/portal' : '/profile'}
-              onClick={() => setMobileOpen(false)}
+              onClick={handleNavClick}
               className="flex items-center gap-2.5 border-b border-white/10 py-3 font-display text-lg text-white hover:text-brand-orangeLight transition-colors"
             >
               <User className="h-5 w-5 text-brand-orangeLight" />
@@ -248,7 +262,7 @@ export default function Navbar() {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => setMobileOpen(false)}
+                onClick={handleNavClick}
                 className="block border-b border-white/10 py-3 font-display text-xl text-white"
               >
                 {item.label}

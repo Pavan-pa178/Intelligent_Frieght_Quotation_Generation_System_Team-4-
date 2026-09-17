@@ -60,7 +60,23 @@ function FooterCol({ title, links }) {
       <ul className="space-y-2.5">
         {links.map(([to, label], i) => (
           <li key={i}>
-            <Link to={to} className="text-[13.5px] hover:text-brand-orangeLight">{label}</Link>
+            <Link
+              to={to}
+              onClick={() => {
+                document.documentElement.style.scrollBehavior = 'auto'
+                try {
+                  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+                } catch {
+                  window.scrollTo(0, 0)
+                }
+                document.documentElement.scrollTop = 0
+                document.body.scrollTop = 0
+                document.documentElement.style.scrollBehavior = ''
+              }}
+              className="text-[13.5px] hover:text-brand-orangeLight"
+            >
+              {label}
+            </Link>
           </li>
         ))}
       </ul>

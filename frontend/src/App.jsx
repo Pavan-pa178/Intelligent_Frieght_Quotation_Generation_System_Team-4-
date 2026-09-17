@@ -27,10 +27,27 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from './context/AppContext'
 
 function ScrollToTop() {
-  const { pathname } = useLocation()
+  const location = useLocation()
+
   useEffect(() => {
-    window.scrollTo({ top: 0 })
-  }, [pathname])
+    const resetScroll = () => {
+      document.documentElement.style.scrollBehavior = 'auto'
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+      } catch {
+        window.scrollTo(0, 0)
+      }
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+      document.documentElement.style.scrollBehavior = ''
+    }
+
+    resetScroll()
+
+    const rafId = requestAnimationFrame(resetScroll)
+    return () => cancelAnimationFrame(rafId)
+  }, [location.pathname, location.search, location.key])
+
   return null
 }
 
