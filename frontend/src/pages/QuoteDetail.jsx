@@ -1773,10 +1773,9 @@ export default function QuoteDetail() {
                           type="button"
                           disabled={deciding}
                           onClick={() => setShowDeclineModal(true)}
-                          className="rounded-xl border border-slate-300 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 px-5 py-3 text-xs font-semibold text-slate-700 transition-all cursor-pointer"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 px-5 py-3 text-xs font-semibold text-slate-700 transition-all cursor-pointer whitespace-nowrap"
                         >
-                          <ThumbsDown className="h-3.5 w-3.5" />
-                          Decline
+                          <ThumbsDown className="h-3.5 w-3.5" /> Decline
                         </button>
                       </div>
                     </div>
