@@ -7,7 +7,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
-JWT_SECRET = os.getenv('JWT_SECRET', 'xC9At_Fjj72KKADDJdKweZZS6q_nGzTRaEtr8dhmJvhLZlAov034taFme9zkTgMXKlU')
+# ⚠️  SECURITY: Never hardcode secrets here. Set JWT_SECRET in your
+# hosting platform's environment variables (Render → Environment tab).
+# The old hardcoded secret was rotated after a GitGuardian public exposure alert.
+JWT_SECRET = os.getenv('JWT_SECRET', '')
+if not JWT_SECRET:
+    # In production (DEBUG=False) a missing secret is a critical failure.
+    # In local dev, fall back to a safe placeholder so runserver still works.
+    import sys
+    _is_production = os.getenv('RENDER') or os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('FLY_APP_NAME')
+    if _is_production:
+        print('[CRITICAL] JWT_SECRET environment variable is not set. Refusing to start.', file=sys.stderr)
+        sys.exit(1)
+    else:
+        JWT_SECRET = 'LOCAL_DEV_ONLY_NOT_FOR_PRODUCTION_REPLACE_IN_RENDER_ENV'
 SECRET_KEY = os.getenv('SECRET_KEY', JWT_SECRET)
 
 # On Render free tier: force DEBUG=False to save significant RAM
