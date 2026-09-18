@@ -4,6 +4,14 @@ from rest_framework.response import Response
 
 SEED_QUOTES = []
 IN_MEMORY_QUOTES = []
+IN_MEMORY_MAX = 100   # never grow beyond this — prevents Render OOM crash
+
+def _trim_memory_pool():
+    """Keep IN_MEMORY_QUOTES capped. Oldest entries dropped; all data is
+    already persisted to disk+MongoDB so nothing is lost."""
+    global IN_MEMORY_QUOTES
+    if len(IN_MEMORY_QUOTES) > IN_MEMORY_MAX:
+        IN_MEMORY_QUOTES = IN_MEMORY_QUOTES[:IN_MEMORY_MAX]
 
 from core.mongodb import get_collection
 from core import storage
@@ -91,6 +99,7 @@ class QuoteListCreateView(APIView):
                 IN_MEMORY_QUOTES.insert(0, payload)
         else:
             IN_MEMORY_QUOTES.insert(0, payload)
+        _trim_memory_pool()   # keep list bounded
 
         try:
             col = get_collection('quotes')

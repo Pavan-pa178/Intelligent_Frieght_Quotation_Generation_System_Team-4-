@@ -10,7 +10,9 @@ load_dotenv(BASE_DIR / '.env')
 JWT_SECRET = os.getenv('JWT_SECRET', 'xC9At_Fjj72KKADDJdKweZZS6q_nGzTRaEtr8dhmJvhLZlAov034taFme9zkTgMXKlU')
 SECRET_KEY = os.getenv('SECRET_KEY', JWT_SECRET)
 
-DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
+# On Render free tier: force DEBUG=False to save significant RAM
+# (Django debug mode keeps full SQL query history in memory)
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = ['*']
 
@@ -132,8 +134,10 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ─── Startup Pre-Warm ─────────────────────────────────────────────────────────
-# Pre-warm MongoDB Atlas connection and ML model in background threads.
-# This eliminates the ~15s first-request timeout on cold start.
+# Only pre-warm MongoDB connection (lightweight).
+# ML model is intentionally NOT pre-warmed here — it lazy-loads on first
+# prediction request. Pre-warming at boot on Render free tier (512MB)
+# immediately consumes 150-300MB RAM before any traffic arrives, causing OOM.
 import threading
 
 def _prewarm_mongo():
@@ -143,12 +147,5 @@ def _prewarm_mongo():
     except Exception:
         pass
 
-def _prewarm_ml_model():
-    try:
-        from apps.ml_pricing.model import _load_model
-        _load_model()
-    except Exception:
-        pass
-
 threading.Thread(target=_prewarm_mongo, daemon=True, name='mongo-prewarm').start()
-threading.Thread(target=_prewarm_ml_model, daemon=True, name='ml-prewarm').start()
+
